@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: gitauto
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,7 +119,12 @@ jobs:
         if: steps.check.outputs.has_new == 'true'
         run: |
           RELEASE_TAG="podcast-${{ env.TODAY }}"
-          gh release upload "$RELEASE_TAG" out/*.zip --clobber
+          for f in out/*.zip; do
+            [ -f "$f" ] || continue
+            fname=$(basename "$f")
+            gh release delete-asset "$RELEASE_TAG" "$fname" -y 2>/dev/null || true
+          done
+          gh release upload "$RELEASE_TAG" out/*.zip
 
       - name: Delete old daily releases (keep last 30)
         if: steps.check.outputs.has_new == 'true'
