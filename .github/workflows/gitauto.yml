@@ -75,7 +75,9 @@ jobs:
           
           for z in prev/*.zip; do
             [ -f "$z" ] || continue
-            show_folder="merged/podcasts/$(basename "$z" .zip)"
+            # מחזיר רווחים לשמות התיקיות כדי להתאים למבנה המקורי
+            orig_name="$(basename "$z" .zip | tr '_' ' ')"
+            show_folder="merged/podcasts/$orig_name"
             mkdir -p "$show_folder"
             echo "Extracting existing ZIP: $z into $show_folder"
             unzip -o -q "$z" -d "$show_folder"
@@ -106,8 +108,9 @@ jobs:
                               files.append(os.path.join(dp, fn))
                       
                       if files:
-                          zip_name = f"{show_name}.zip"
-                          zip_path = os.path.join("out", zip_name)
+                          # הסרת רווחים והחלפתם בקו תחתון כדי למנוע שגיאות ב-GitHub API
+                          safe_zip_name = show_name.replace(" ", "_") + ".zip"
+                          zip_path = os.path.join("out", safe_zip_name)
                           
                           with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
                               for f in files:
