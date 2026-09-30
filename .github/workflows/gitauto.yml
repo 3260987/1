@@ -48,8 +48,10 @@ jobs:
       - name: Check for new episodes
         id: check
         run: |
-          if [ -n "$(find podcasts -type f 2>/dev/null | head -n 1)" ]; then
+          # בדיקה האם נוצרו תיקיות או קבצים תחת podcasts
+          if [ -n "$(find podcasts -mindepth 1 -type f 2>/dev/null | head -n 1)" ]; then
             echo "has_new=true" >> "$GITHUB_OUTPUT"
+            echo "New episodes found."
           else
             echo "has_new=false" >> "$GITHUB_OUTPUT"
             echo "No new episodes - skipping archive."
@@ -64,14 +66,36 @@ jobs:
             --title "Podcast Archives - ${{ env.TODAY }}" \
             --notes "Automated podcast archives for ${{ env.TODAY }} grouped by show."
 
-      - name: Build ZIP per show
+      - name: Merge with existing ZIPs from today (if any)
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          RELEASE_TAG="podcast-${{ env.TODAY }}"
+          mkdir -p prev merged/podcasts
+          
+          gh release download "$RELEASE_TAG" --dir prev || true
+          
+          for z in prev/*.zip; do
+            [ -f "$z" ] || continue
+            show_folder="merged/podcasts/$(basename "$z" .zip)"
+            mkdir -p "$show_folder"
+            echo "Extracting existing ZIP: $z into $show_folder"
+            unzip -o -q "$z" -d "$show_folder"
+          done
+          
+          # מיזוג התיקיות החדשות
+          cp -a podcasts/. merged/podcasts/
+
+      - name: Build final ZIPs per show
         if: steps.check.outputs.has_new == 'true'
         run: |
           mkdir -p out
           python - <<'PYEOF'
           import os, zipfile
 
-          root = "podcasts"
+          root = "merged/podcasts"
+          if not os.path.exists(root):
+              root = "podcasts"
+
           os.makedirs("out", exist_ok=True)
 
           if os.path.exists(root):
@@ -90,7 +114,7 @@ jobs:
                           with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
                               for f in files:
                                   zf.write(f, os.path.relpath(f, show_path))
-                          print(f"Created ZIP for '{show_name}': {len(files)} files, {os.path.getsize(zip_path) / 1e6:.1f} MB")
+                          print(f"Created/Updated ZIP for '{show_name}': {len(files)} files, {os.path.getsize(zip_path) / 1e6:.1f} MB")
           PYEOF
 
       - name: Upload to Daily Release
