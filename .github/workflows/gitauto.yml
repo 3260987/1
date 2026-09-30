@@ -1,0 +1,107 @@
+name: GitAuto
+
+on:
+  schedule:
+    - cron: "30 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Test latest episode detection now"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gitauto
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set date (Israel time)
+        run: echo "TODAY=$(TZ=Asia/Jerusalem date +%F)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pip install feedparser requests
+
+      - name: Run script
+        env:
+          TEST_SEND: ${{ github.event.inputs.test }}
+        run: |
+          rm -rf podcasts
+          mkdir -p podcasts
+          python gitauto.py
+
+      - name: Check for new episodes
+        id: check
+        run: |
+          if [ -n "$(find podcasts -type f 2>/dev/null | head -n 1)" ]; then
+            echo "has_new=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_new=false" >> "$GITHUB_OUTPUT"
+            echo "No new episodes - skipping archive."
+          fi
+
+      - name: Create Daily Release
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          RELEASE_TAG="podcast-${{ env.TODAY }}"
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+          gh release create "$RELEASE_TAG" \
+            --title "Podcast Archives - ${{ env.TODAY }}" \
+            --notes "Automated podcast archives for ${{ env.TODAY }} grouped by show."
+
+      - name: Build ZIP per show
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          mkdir -p out
+          python - <<'PYEOF'
+          import os, zipfile
+
+          root = "podcasts"
+          os.makedirs("out", exist_ok=True)
+
+          if os.path.exists(root):
+              for show_name in os.listdir(root):
+                  show_path = os.path.join(root, show_name)
+                  if os.path.isdir(show_path):
+                      files = []
+                      for dp, _, fns in os.walk(show_path):
+                          for fn in fns:
+                              files.append(os.path.join(dp, fn))
+                      
+                      if files:
+                          zip_name = f"{show_name}.zip"
+                          zip_path = os.path.join("out", zip_name)
+                          
+                          with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+                              for f in files:
+                                  zf.write(f, os.path.relpath(f, show_path))
+                          print(f"Created ZIP for '{show_name}': {len(files)} files, {os.path.getsize(zip_path) / 1e6:.1f} MB")
+          PYEOF
+
+      - name: Upload to Daily Release
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          RELEASE_TAG="podcast-${{ env.TODAY }}"
+          gh release upload "$RELEASE_TAG" out/*.zip --clobber
+
+      - name: Save state
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add seen.json
+          git diff --cached --quiet || (git commit -m "Update state" && git push)
