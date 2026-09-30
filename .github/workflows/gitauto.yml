@@ -48,7 +48,6 @@ jobs:
       - name: Check for new episodes
         id: check
         run: |
-          # בדיקה האם נוצרו תיקיות או קבצים תחת podcasts
           if [ -n "$(find podcasts -mindepth 1 -type f 2>/dev/null | head -n 1)" ]; then
             echo "has_new=true" >> "$GITHUB_OUTPUT"
             echo "New episodes found."
@@ -82,7 +81,6 @@ jobs:
             unzip -o -q "$z" -d "$show_folder"
           done
           
-          # מיזוג התיקיות החדשות
           cp -a podcasts/. merged/podcasts/
 
       - name: Build final ZIPs per show
@@ -122,6 +120,17 @@ jobs:
         run: |
           RELEASE_TAG="podcast-${{ env.TODAY }}"
           gh release upload "$RELEASE_TAG" out/*.zip --clobber
+
+      - name: Delete old daily releases (keep last 30)
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          gh release list --limit 200 --json tagName -q '.[] | select(.tagName | startswith("podcast-")) | .tagName' | \
+          sort | head -n -30 | while read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "Deleting old release: $tag"
+              gh release delete "$tag" --cleanup-tag -y || true
+            fi
+          done
 
       - name: Save state
         run: |
