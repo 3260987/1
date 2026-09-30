@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import time
@@ -56,10 +57,28 @@ def save_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def clean_name(name):
+def clean_name(name, feed_url=""):
+    hebrew_map = {
+        'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h', 'ו': 'v', 'ז': 'z',
+        'ח': 'ch', 'ט': 't', 'י': 'y', 'כ': 'k', 'ך': 'k', 'ל': 'l', 'מ': 'm',
+        'ם': 'm', 'נ': 'n', 'ן': 'n', 'ס': 's', 'ע': 'a', 'פ': 'p', 'ף': 'p',
+        'צ': 'ts', 'ץ': 'ts', 'ק': 'k', 'ר': 'r', 'ש': 'sh', 'ת': 't'
+    }
+    
+    # הסרת תווים אסורים פשוטים מראש
     for char in ['[', ']', ':', ',', '?', '!', '"', "'", '|', '\\', '/']:
         name = name.replace(char, '')
-    return "".join(c for c in name if c.isalnum() or c in " -_().") or "unknown"
+
+    transliterated = "".join(hebrew_map.get(c, c) for c in name)
+    safe_ascii = "".join(c for c in transliterated if c.isascii() and (c.isalnum() or c in " -_()."))
+    safe_ascii = safe_ascii.strip()
+    
+    if not safe_ascii and feed_url:
+        safe_ascii = "podcast_" + hashlib.md5(feed_url.encode()).hexdigest()[:8]
+    elif not safe_ascii:
+        safe_ascii = "podcast"
+        
+    return safe_ascii
 
 
 def download_podcast(url, path):
@@ -84,15 +103,15 @@ def download_podcast(url, path):
             time.sleep(5)
 
 
-def process_entry(feed_title, entry):
+def process_entry(feed_url, feed_title, entry):
     title = entry.get("title", "New episode")
     enclosures = entry.get("enclosures", [])
     if not enclosures:
         print(f"No audio file found for: {title}")
         return
 
-    cleaned_feed = clean_name(feed_title)[:50].strip()
-    cleaned_title = clean_name(title)[:70].strip()
+    cleaned_feed = clean_name(feed_title, feed_url)[:50].strip()
+    cleaned_title = clean_name(title, feed_url)[:70].strip()
 
     # יצירת תיקייה נפרדת לכל פודקאסט תחת podcasts
     show_dir = os.path.join(DOWNLOAD_DIR, cleaned_feed)
@@ -121,7 +140,7 @@ def main():
         ids = [e.get("id") or e.get("link") for e in entries]
 
         if TEST_SEND and entries:
-            process_entry(feed_title, entries[0])
+            process_entry(feed_url, feed_title, entries[0])
             state.setdefault(feed_url, ids)
             continue
 
@@ -132,7 +151,7 @@ def main():
         seen = set(state[feed_url])
         for entry, eid in reversed(list(zip(entries, ids))):
             if eid not in seen:
-                process_entry(feed_title, entry)
+                process_entry(feed_url, feed_title, entry)
                 seen.add(eid)
         state[feed_url] = list(seen)
 
