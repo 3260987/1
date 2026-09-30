@@ -40,7 +40,7 @@ FEEDS = [
 ]
 
 STATE_FILE = "seen.json"
-DOWNLOAD_DIR = "podcasts_auto"
+DOWNLOAD_DIR = "podcasts"  # חייב להיות תואם למה שה-Workflow מחפש
 TEST_SEND = os.environ.get("TEST_SEND") == "true"
 
 
@@ -56,9 +56,14 @@ def save_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def download_podcast(url, filename):
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    path = os.path.join(DOWNLOAD_DIR, filename)
+def clean_name(name):
+    for char in ['[', ']', ':', ',', '?', '!', '"', "'", '|', '\\', '/']:
+        name = name.replace(char, '')
+    return "".join(c for c in name if c.isalnum() or c in " -_().") or "unknown"
+
+
+def download_podcast(url, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
@@ -73,7 +78,7 @@ def download_podcast(url, filename):
                             f.write(chunk)
             return path
         except Exception as e:
-            print(f"ניסיון {attempt} נכשל בהורדת {filename}: {e}")
+            print(f"ניסיון {attempt} נכשל בהורדה: {e}")
             if attempt == 3:
                 raise e
             time.sleep(5)
@@ -86,16 +91,17 @@ def process_entry(feed_title, entry):
         print(f"No audio file found for: {title}")
         return
 
-    cleaned_feed = feed_title.replace("[", "'").replace("]", "'").replace(":", "")
-    cleaned_title = title.replace("[", "'").replace("]", "'").replace(":", "")
+    cleaned_feed = clean_name(feed_title)[:50].strip()
+    cleaned_title = clean_name(title)[:70].strip()
 
-    full_name = f"{cleaned_feed} - {cleaned_title}"
-    safe = "".join(c for c in full_name[:100] if c.isalnum() or c in " -_.,()'") or "episode"
-    filename = f"{safe}.mp3"
-    
-    print(f"Downloading: {filename}")
+    # יצירת תיקייה נפרדת לכל פודקאסט תחת podcasts
+    show_dir = os.path.join(DOWNLOAD_DIR, cleaned_feed)
+    filename = f"{cleaned_title}.mp3"
+    path = os.path.join(show_dir, filename)
+
+    print(f"Downloading to [{cleaned_feed}]: {filename}")
     try:
-        download_podcast(enclosures[0]["href"], filename)
+        download_podcast(enclosures[0]["href"], path)
     except Exception as e:
         print(f"Failed to download {filename}: {e}")
 
