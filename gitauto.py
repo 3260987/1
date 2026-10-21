@@ -20,6 +20,8 @@ FEEDS = [
 "https://afr.net/api/v2/podcast/podcastsbyidrss/?id=7668",
 "https://anchor.fm/s/272ae0dc/podcast/rss",
 "https://zeroday.podbean.com/feed.xml",
+"https://feeds.megaphone.fm/darknetdiaries",
+
     
 ]
 
