@@ -6,20 +6,15 @@ import feedparser
 import requests
 
 FEEDS = [    
-"https://rss.buzzsprout.com/1241654.rss",
-"https://anchor.fm/s/2e3159d8/podcast/rss",
-"https://psycyb.libsyn.com/rss",
-"https://feeds.simplecast.com/iTYwWFdE",
-"https://rss.buzzsprout.com/1035529.rss",
-"https://rss.buzzsprout.com/1635619.rss",
-"https://feeds.megaphone.fm/8th-layer-insights",
-"https://feeds.buzzsprout.com/1431304.rss",
-"https://www.spreaker.com/show/4573919/episodes/feed",
-"http://wfpusa.libsyn.com/rss",
-"https://anchor.fm/s/332ace24/podcast/rss",
-"https://anchor.fm/s/272ae0dc/podcast/rss",
-"https://zeroday.podbean.com/feed.xml",
 "https://feeds.megaphone.fm/darknetdiaries",
+"https://feeds.megaphone.fm/cyberwire-daily-podcast",
+"https://feeds.acast.com/public/shows/cyber",
+"https://feeds.soundcloud.com/users/soundcloud:users:261098918/sounds.rss",
+"https://anchor.fm/s/1d06b6f0/podcast/rss",
+"https://feeds.buzzsprout.com/1790481.rss",
+"https://www.cbc.ca/podcasting/includes/warhead.xml",
+"https://feeds.megaphone.fm/maliciouslife",
+"https://firewallsdontstopdragons.com/feed/podcast/",
 
     
 ]
